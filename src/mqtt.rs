@@ -4,8 +4,6 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use prost::Message;
 use rumqttc::Packet::{self, PingResp, Publish};
 
-use crate::meshtastic::mesh_packet;
-
 const COORDINATE_MULTIPLIER: f64 = 0.0000001;
 
 pub fn handle_incoming(i: Packet) {
@@ -81,8 +79,8 @@ fn handle_decoded(topic: &str, d: Data) {
 
 fn handle_payload_variant(topic: &str, v: PayloadVariant) {
 	match v {
-		mesh_packet::PayloadVariant::Decoded(d) => handle_decoded(topic, d),
-		mesh_packet::PayloadVariant::Encrypted(e) => {
+		PayloadVariant::Decoded(d) => handle_decoded(topic, d),
+		PayloadVariant::Encrypted(e) => {
 			println!("  Encrypted = {:?}", e)
 		}
 	}

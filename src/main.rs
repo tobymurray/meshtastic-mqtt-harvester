@@ -1,4 +1,5 @@
 use crate::mqtt::handle_incoming;
+use dotenvy::dotenv;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use std::time::Duration;
 
@@ -11,9 +12,12 @@ pub mod meshtastic {
 
 #[tokio::main]
 async fn main() {
-	println!("Hello, world!");
+	dotenv().ok();
 
-	let mut mqttoptions = MqttOptions::new("rumqtt-async", "192.46.222.65", 1883);
+	let mqtt_host = std::env::var("MQTT_HOST").unwrap();
+	let mqtt_port = std::env::var("MQTT_PORT").unwrap().parse::<u16>().unwrap();
+
+	let mut mqttoptions = MqttOptions::new("rumqtt-async", mqtt_host, mqtt_port);
 	mqttoptions.set_keep_alive(Duration::from_secs(5));
 
 	let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
