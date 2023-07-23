@@ -1,5 +1,6 @@
 CREATE TABLE positions (
+    id SERIAL PRIMARY KEY,
     user_id VARCHAR,
-    location POINT,
+    location geometry(POINT),
     timestamp TIMESTAMP
 );

@@ -4,6 +4,7 @@ use rumqttc::{AsyncClient, MqttOptions, QoS};
 use std::time::Duration;
 
 pub mod mqtt;
+pub mod postgres;
 pub mod utils;
 
 pub mod meshtastic {
@@ -13,7 +14,6 @@ pub mod meshtastic {
 #[tokio::main]
 async fn main() {
 	dotenv().ok();
-
 	let mqtt_host = std::env::var("MQTT_HOST").unwrap();
 	let mqtt_port = std::env::var("MQTT_PORT").unwrap().parse::<u16>().unwrap();
 
@@ -27,7 +27,7 @@ async fn main() {
 		let notification = eventloop.poll().await.unwrap();
 
 		match notification {
-			rumqttc::Event::Incoming(i) => handle_incoming(i),
+			rumqttc::Event::Incoming(i) => handle_incoming(i).await,
 			rumqttc::Event::Outgoing(o) => {
 				match o {
 					rumqttc::Outgoing::PingReq => {} // Don't do anything, they're so loud

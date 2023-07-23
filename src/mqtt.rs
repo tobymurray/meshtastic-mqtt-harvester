@@ -6,15 +6,45 @@ use rumqttc::Packet::{self, PingResp, Publish};
 
 const COORDINATE_MULTIPLIER: f64 = 0.0000001;
 
-pub fn handle_incoming(i: Packet) {
+pub async fn handle_incoming(i: Packet) {
 	match i {
-		Publish(p) => handle_incoming_publish(p),
+		Publish(p) => handle_incoming_publish(p).await,
 		PingResp => {} // Don't do anything, they're so loud
 		_ => println!("Received = {:?}", i),
 	}
 }
 
-fn handle_portnum(topic: &str, p: PortNum, d: Data) {
+async fn handle_position(topic: &str, d: Data) {
+	println!("  Decoded = {:?}", d);
+	match Position::decode(d.payload.as_ref()) {
+		Ok(p) => {
+			let timestamp = NaiveDateTime::from_timestamp_opt(p.time.into(), 0);
+
+			let user_id = get_user_id(topic).unwrap_or("UNKNOWN CLIENT");
+
+			let latitude = p.latitude_i as f64 * COORDINATE_MULTIPLIER;
+			let longitude = p.longitude_i as f64 * COORDINATE_MULTIPLIER;
+			println!("    Topic = {:?}", topic);
+			println!("      Client = {:?}", user_id);
+			println!("      Longitude = {:.5?}", longitude);
+			println!("      Latitude = {:.5?}", latitude);
+			match timestamp {
+				Some(t) => {
+					let datetime = DateTime::<Utc>::from_utc(t, Utc);
+					let est_tz = chrono_tz::Tz::America__New_York;
+					let est_datetime = datetime.with_timezone(&est_tz);
+					println!("      Datetime = {:?}", est_datetime);
+					let db_client = crate::postgres::setup().await;
+					crate::postgres::insert_location(db_client, user_id, latitude, longitude, datetime).await;
+				}
+				None => println!("      Can't parse timestamp {:?}", p.time),
+			}
+		}
+		Err(e) => println!("  Error = {:?}", e),
+	}
+}
+
+async fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 	match p {
 		PortNum::TextMessageApp => {
 			println!("  Decoded = {:?}", d);
@@ -26,31 +56,7 @@ fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 				Err(e) => println!("  Error = {:?}", e),
 			}
 		}
-		PortNum::PositionApp => {
-			println!("  Decoded = {:?}", d);
-			match Position::decode(d.payload.as_ref()) {
-				Ok(p) => {
-					let timestamp = NaiveDateTime::from_timestamp_opt(p.time.into(), 0);
-
-					let user_id = get_user_id(topic).unwrap_or("UNKNOWN CLIENT");
-
-					println!("    Topic = {:?}", topic);
-					println!("      Client = {:?}", user_id);
-					println!("      Longitude = {:.5?}", p.longitude_i as f64 * COORDINATE_MULTIPLIER);
-					println!("      Latitude = {:.5?}", p.latitude_i as f64 * COORDINATE_MULTIPLIER);
-					match timestamp {
-						Some(t) => {
-							let datetime = DateTime::<Utc>::from_utc(t, Utc);
-							let est_tz = chrono_tz::Tz::America__New_York;
-							let est_datetime = datetime.with_timezone(&est_tz);
-							println!("      Datetime = {:?}", est_datetime)
-						}
-						None => println!("      Can't parse timestamp {:?}", p.time),
-					}
-				}
-				Err(e) => println!("  Error = {:?}", e),
-			}
-		}
+		PortNum::PositionApp => handle_position(topic, d).await,
 		PortNum::TelemetryApp => {
 			println!("  Decoded = {:?}", d);
 			println!("    Payload = {:?}", d.payload);
@@ -68,51 +74,51 @@ fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 	}
 }
 
-fn handle_decoded(topic: &str, d: Data) {
+async fn handle_decoded(topic: &str, d: Data) {
 	let portnum = int_to_portnum(d.portnum);
 
 	match portnum {
-		Some(p) => handle_portnum(topic, p, d),
+		Some(p) => handle_portnum(topic, p, d).await,
 		None => todo!(),
 	}
 }
 
-fn handle_payload_variant(topic: &str, v: PayloadVariant) {
+async fn handle_payload_variant(topic: &str, v: PayloadVariant) {
 	match v {
-		PayloadVariant::Decoded(d) => handle_decoded(topic, d),
+		PayloadVariant::Decoded(d) => handle_decoded(topic, d).await,
 		PayloadVariant::Encrypted(e) => {
 			println!("  Encrypted = {:?}", e)
 		}
 	}
 }
 
-fn handle_mesh_packet(topic: &str, p: MeshPacket) {
+async fn handle_mesh_packet(topic: &str, p: MeshPacket) {
 	match p.payload_variant {
-		Some(v) => handle_payload_variant(topic, v),
+		Some(v) => handle_payload_variant(topic, v).await,
 		None => println!("  Decoded = {:?}", p),
 	}
 }
 
-fn handle_service_envelope(topic: &str, m: ServiceEnvelope) {
+async fn handle_service_envelope(topic: &str, m: ServiceEnvelope) {
 	match m.packet {
-		Some(p) => handle_mesh_packet(topic, p),
+		Some(p) => handle_mesh_packet(topic, p).await,
 		None => println!("  Decoded = {:?}", m),
 	}
 }
 
-fn handle_mesh_2_c(p: rumqttc::Publish) {
+async fn handle_mesh_2_c(p: rumqttc::Publish) {
 	println!("Received = {:?}, {:?}", p, p.payload);
 	let topic = p.topic;
 	let message: Result<ServiceEnvelope, prost::DecodeError> = ServiceEnvelope::decode(p.payload.clone());
 	match message {
-		Ok(m) => handle_service_envelope(&topic, m),
+		Ok(m) => handle_service_envelope(&topic, m).await,
 		Err(e) => println!("  Error = {:?}", e),
 	}
 }
 
-fn handle_incoming_publish(p: rumqttc::Publish) {
+async fn handle_incoming_publish(p: rumqttc::Publish) {
 	if p.topic.starts_with("msh/2/c/") {
-		handle_mesh_2_c(p);
+		handle_mesh_2_c(p).await;
 	} else {
 		println!("Received = {:?}, {:?}", p, p.payload);
 	}
