@@ -12,7 +12,6 @@ pub fn int_to_portnum(portnum: i32) -> Option<PortNum> {
 		7 => Some(PortNum::TextMessageCompressedApp),
 		8 => Some(PortNum::WaypointApp),
 		9 => Some(PortNum::AudioApp),
-		10 => Some(PortNum::MqttClientProxyApp),
 		32 => Some(PortNum::ReplyApp),
 		33 => Some(PortNum::IpTunnelApp),
 		64 => Some(PortNum::SerialApp),
