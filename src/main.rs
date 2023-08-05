@@ -21,10 +21,16 @@ async fn main() {
 	mqttoptions.set_keep_alive(Duration::from_secs(5));
 
 	let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
-	client.subscribe("#", QoS::AtMostOnce).await.unwrap();
+	client.subscribe("msh/2/c/LongFast/#", QoS::AtMostOnce).await.unwrap();
 
 	loop {
-		let notification = eventloop.poll().await.unwrap();
+		let notification = match eventloop.poll().await {
+			Ok(e) => e,
+			Err(e) => {
+				eprintln!("{:#?}", e);
+				continue;
+			}
+		};
 
 		match notification {
 			rumqttc::Event::Incoming(i) => handle_incoming(i).await,
