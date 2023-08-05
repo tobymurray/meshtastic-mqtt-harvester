@@ -28,14 +28,18 @@ pub async fn insert_location(
 	longitude: f64,
 	timestamp: DateTime<Utc>,
 ) -> u64 {
+	let table = std::env::var("POSTGRES_TABLE").unwrap();
+
+	let stmt = format!(
+		"INSERT INTO {table} (user_id, location, timestamp) VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4)"
+	);
+
 	// Define the SQL statement with placeholders for the parameters
-	let stmt = client
-      .prepare("INSERT INTO positions (user_id, location, timestamp) VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4)")
-      .await.unwrap();
+	let stmt = client.prepare(&stmt).await.unwrap();
 
 	// Execute the prepared statement with the provided arguments
 	client
-		.execute(&stmt, &[&user_id, &longitude, &latitude, &timestamp.naive_utc()])
+		.execute(&stmt, &[&user_id, &longitude, &latitude, &timestamp])
 		.await
 		.unwrap()
 }
