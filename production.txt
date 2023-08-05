@@ -1,0 +1,1 @@
+scp /home/toby/git/rust/prost-test/target/x86_64-unknown-linux-gnu/release/prost-test toby@172.105.10.14:/home/toby
