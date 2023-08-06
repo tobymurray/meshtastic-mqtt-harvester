@@ -27,8 +27,10 @@ static MQTT_CONFIG: Lazy<MqttOptions> = Lazy::new(|| {
 async fn main() {
 	dotenv().ok();
 
+	let mqtt_host = std::env::var("MQTT_TOPIC").unwrap();
+
 	let (client, mut eventloop) = AsyncClient::new(MQTT_CONFIG.clone(), 10);
-	client.subscribe("msh/2/c/LongFast/#", QoS::AtMostOnce).await.unwrap();
+	client.subscribe(mqtt_host, QoS::AtMostOnce).await.unwrap();
 
 	loop {
 		let notification = match eventloop.poll().await {
