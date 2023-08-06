@@ -16,8 +16,9 @@ async fn main() {
 	dotenv().ok();
 	let mqtt_host = std::env::var("MQTT_HOST").unwrap();
 	let mqtt_port = std::env::var("MQTT_PORT").unwrap().parse::<u16>().unwrap();
+	let mqtt_user = std::env::var("MQTT_USER").unwrap();
 
-	let mut mqttoptions = MqttOptions::new("rumqtt-async", mqtt_host, mqtt_port);
+	let mut mqttoptions = MqttOptions::new(mqtt_user, mqtt_host, mqtt_port);
 	mqttoptions.set_keep_alive(Duration::from_secs(5));
 
 	let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
