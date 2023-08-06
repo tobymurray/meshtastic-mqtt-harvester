@@ -564,6 +564,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "dotenvy",
+ "once_cell",
  "prost",
  "prost-build",
  "rumqttc",
