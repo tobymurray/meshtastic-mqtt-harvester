@@ -1,3 +1,4 @@
+#![allow(clippy::non_snake_case)]
 use crate::mqtt::handle_incoming;
 use dotenvy::dotenv;
 use once_cell::sync::Lazy;
