@@ -34,8 +34,7 @@ async fn handle_position(topic: &str, d: Data) {
 					let est_tz = chrono_tz::Tz::America__New_York;
 					let est_datetime = datetime.with_timezone(&est_tz);
 					println!("      Datetime = {:?}", est_datetime);
-					let db_client = crate::postgres::setup().await;
-					crate::postgres::insert_location(db_client, user_id, latitude, longitude, datetime).await;
+					crate::postgres::insert_location(user_id, latitude, longitude, datetime).await;
 				}
 				None => println!("      Can't parse timestamp {:?}", p.time),
 			}
