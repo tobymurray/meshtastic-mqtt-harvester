@@ -1,5 +1,7 @@
-use crate::meshtastic::{mesh_packet::PayloadVariant, Data, MeshPacket, PortNum, Position, ServiceEnvelope, Telemetry};
-use crate::utils::{get_user_id, int_to_portnum};
+use crate::protobufs::meshtastic::{
+	int_to_portnum, mesh_packet::PayloadVariant, Data, MeshPacket, PortNum, Position, ServiceEnvelope, Telemetry,
+};
+use crate::utils::get_user_id;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use prost::Message;
 use rumqttc::Packet::{self, PingResp, Publish};
