@@ -1,3 +1,6 @@
+use std::error::Error;
+
+use crate::errors::HarvesterError::BadTimestamp;
 use crate::protobufs::meshtastic::{
 	int_to_portnum, mesh_packet::PayloadVariant, Data, PortNum, Position, ServiceEnvelope, Telemetry,
 };
@@ -7,77 +10,55 @@ use prost::Message;
 
 const COORDINATE_MULTIPLIER: f64 = 0.0000001;
 
-pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), prost::DecodeError> {
+pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), Box<dyn Error>> {
 	let message = ServiceEnvelope::decode(publish_packet.payload)?;
 
 	if let Some(packet) = message.packet {
 		match packet.payload_variant {
 			Some(PayloadVariant::Decoded(d)) => {
-				let portnum = int_to_portnum(d.portnum);
-
-				match portnum {
-					Some(p) => handle_portnum(&publish_packet.topic, p, d).await?,
-					None => todo!(),
-				}
+				println!("  Decoded = {:?}", d);
+				let portnum = int_to_portnum(d.portnum)?;
+				handle_portnum(&publish_packet.topic, portnum, d).await?;
 			}
-			Some(PayloadVariant::Encrypted(_)) => (), // Nothing to do with encrypted packets
+			Some(PayloadVariant::Encrypted(_)) => (),
 			None => println!("  MeshPacket = {:?}", packet),
 		}
 	}
 	Ok(())
 }
 
-async fn handle_portnum(topic: &str, p: PortNum, d: Data) -> Result<(), prost::DecodeError> {
+async fn handle_portnum(topic: &str, p: PortNum, d: Data) -> Result<(), Box<dyn Error>> {
 	match p {
 		PortNum::TextMessageApp => {
-			println!("  Decoded = {:?}", d);
-			match String::from_utf8(d.payload) {
-				Ok(t) => {
-					println!("    TextMessage = {:?}", t)
-				}
-				Err(e) => println!("  Error = {:?}", e),
-			}
+			println!("    TextMessage = {:?}", String::from_utf8(d.payload)?);
 		}
 		PortNum::PositionApp => handle_position(topic, d).await?,
 		PortNum::TelemetryApp => {
-			println!("  Decoded = {:?}", d);
-			match Telemetry::decode(d.payload.as_ref()) {
-				Ok(t) => {
-					println!("    {:?}", t)
-				}
-				Err(e) => println!("  Error = {:?}", e),
-			}
+			let t = Telemetry::decode(d.payload.as_ref())?;
+			println!("    {:?}", t);
 		}
-		_ => {
-			println!("  Decoded = {:?}", d);
-		}
+		_ => {}
 	}
 	println!();
 	Ok(())
 }
 
-async fn handle_position(topic: &str, d: Data) -> Result<(), prost::DecodeError> {
-	println!("  Decoded = {:?}", d);
-
+async fn handle_position(topic: &str, d: Data) -> Result<(), Box<dyn Error>> {
 	let p = Position::decode(d.payload.as_ref())?;
-	let timestamp = NaiveDateTime::from_timestamp_opt(p.time.into(), 0);
+	println!("    Payload = {p:?}");
+	let timestamp = NaiveDateTime::from_timestamp_opt(p.time.into(), 0).ok_or_else(|| BadTimestamp(p.time))?;
 
 	let user_id = get_user_id(topic).unwrap_or("UNKNOWN CLIENT");
 
 	let latitude = p.latitude_i as f64 * COORDINATE_MULTIPLIER;
 	let longitude = p.longitude_i as f64 * COORDINATE_MULTIPLIER;
 
-	println!("    Position = {user_id:?}: ({longitude:.5}, {latitude:.5})");
-	match timestamp {
-		Some(t) => {
-			let datetime = DateTime::<Utc>::from_utc(t, Utc);
-			let est_tz = chrono_tz::Tz::America__New_York;
-			let est_datetime = datetime.with_timezone(&est_tz);
-			println!("      Datetime = {:?}", est_datetime);
-			crate::postgres::insert_location(user_id, latitude, longitude, datetime).await;
-		}
-		None => println!("      Can't parse timestamp {:?}", p.time),
-	}
+	let datetime = DateTime::<Utc>::from_utc(timestamp, Utc);
+	let est_datetime = datetime.with_timezone(&chrono_tz::Tz::America__New_York);
+
+	println!("    Position = {user_id:}: ({longitude:.5}, {latitude:.5}) @ {est_datetime}");
+
+	crate::postgres::insert_location(user_id, latitude, longitude, datetime).await;
 
 	Ok(())
 }

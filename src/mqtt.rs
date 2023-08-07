@@ -3,14 +3,14 @@ use rumqttc::Packet::{
 	self, ConnAck, Connect, Disconnect, PingReq, PingResp, PubAck, PubComp, PubRec, PubRel, Publish, SubAck, Subscribe,
 	UnsubAck, Unsubscribe,
 };
-use std::fmt::Debug;
+use std::{error::Error, fmt::Debug};
 
-fn handle_packet<T: Debug>(p: T) -> Result<(), prost::DecodeError> {
+fn handle_packet<T: Debug>(p: T) -> Result<(), Box<dyn Error>> {
 	println!("Received = {:?}", p);
 	Ok(())
 }
 
-pub async fn handle_incoming(i: Packet) -> Result<(), prost::DecodeError> {
+pub async fn handle_incoming(i: Packet) -> Result<(), Box<dyn Error>> {
 	match i {
 		Publish(p) => publish::handle(p).await,
 		Connect(p) => handle_packet(p),

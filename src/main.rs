@@ -12,6 +12,7 @@ mod packet_handlers {
 	pub mod publish;
 }
 
+pub mod errors;
 pub mod mqtt;
 pub mod postgres;
 pub mod utils;
