@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use crate::errors::HarvesterError::BadTimestamp;
+use crate::protobufs::meshtastic::telemetry;
 use crate::protobufs::meshtastic::{
 	int_to_portnum, mesh_packet::PayloadVariant, Data, PortNum, Position, ServiceEnvelope, Telemetry,
 };
@@ -20,39 +21,37 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), Box<dyn Erro
 				handle_portnum(&publish_packet.topic, portnum, d).await?;
 			}
 			Some(PayloadVariant::Encrypted(_)) => (),
-			None => println!("  MeshPacket = {:?}", packet),
+			None => println!("MeshPacket = {:?}", packet),
 		}
 	}
 	Ok(())
 }
 
 async fn handle_portnum(topic: &str, p: PortNum, d: Data) -> Result<(), Box<dyn Error>> {
+	let user_id = get_user_id(topic).unwrap_or("UNKNOWN CLIENT");
 	match p {
 		PortNum::TextMessageApp => {
-			println!("  Decoded = {:?}", d);
-			println!("    TextMessage = {:?}", String::from_utf8(d.payload)?);
+			println!("Decoded = {:?}", d);
+			println!("  TextMessage = {:?}", String::from_utf8(d.payload)?);
 		}
 		PortNum::PositionApp => {
-			println!("  Decoded = {:?}", d);
-			handle_position(topic, d).await?
+			println!("Decoded = {:?}", d);
+			handle_position(user_id, d).await?
 		}
 		PortNum::TelemetryApp => {
-			println!("  Decoded = {:?}", d);
-			let t = Telemetry::decode(d.payload.as_ref())?;
-			println!("    {:?}", t);
+			println!("Decoded = {:?}", d);
+			handle_telemetry(user_id, d).await?
 		}
-		_ => println!("  IGNORING {}", p.as_str_name()),
+		_ => println!("IGNORING {}", p.as_str_name()),
 	}
 	println!();
 	Ok(())
 }
 
-async fn handle_position(topic: &str, d: Data) -> Result<(), Box<dyn Error>> {
+async fn handle_position(user_id: &str, d: Data) -> Result<(), Box<dyn Error>> {
 	let p = Position::decode(d.payload.as_ref())?;
-	println!("    Payload = {p:?}");
+	println!("  Payload = {p:?}");
 	let timestamp = NaiveDateTime::from_timestamp_opt(p.time.into(), 0).ok_or_else(|| BadTimestamp(p.time))?;
-
-	let user_id = get_user_id(topic).unwrap_or("UNKNOWN CLIENT");
 
 	let latitude = p.latitude_i as f64 * COORDINATE_MULTIPLIER;
 	let longitude = p.longitude_i as f64 * COORDINATE_MULTIPLIER;
@@ -60,9 +59,28 @@ async fn handle_position(topic: &str, d: Data) -> Result<(), Box<dyn Error>> {
 	let datetime = DateTime::<Utc>::from_utc(timestamp, Utc);
 	let est_datetime = datetime.with_timezone(&chrono_tz::Tz::America__New_York);
 
-	println!("    Position = {user_id:}: ({longitude:.5}, {latitude:.5}) @ {est_datetime}");
+	println!("  Position = {user_id:}: ({longitude:.5}, {latitude:.5}) @ {est_datetime}");
 
 	crate::postgres::insert_location(user_id, latitude, longitude, datetime).await;
+
+	Ok(())
+}
+
+async fn handle_telemetry(user_id: &str, d: Data) -> Result<(), Box<dyn Error>> {
+	let t = Telemetry::decode(d.payload.as_ref())?;
+
+	match t.variant {
+		Some(telemetry::Variant::DeviceMetrics(m)) => {
+			println!("  Telemetry: {user_id:}: {} {m:?}", t.time)
+		}
+		Some(telemetry::Variant::EnvironmentMetrics(m)) => {
+			println!("  Telemetry: {user_id:}: {} {m:?}", t.time)
+		}
+		Some(telemetry::Variant::AirQualityMetrics(m)) => {
+			println!("  Telemetry: {user_id:}: {} {m:?}", t.time)
+		}
+		None => todo!(),
+	};
 
 	Ok(())
 }
