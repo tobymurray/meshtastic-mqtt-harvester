@@ -22,23 +22,48 @@ static DB_POOL: Lazy<Pool<Postgres>> = Lazy::new(|| {
 	PgPoolOptions::new().max_connections(5).connect_lazy_with(options)
 });
 
-static INSERT_STATEMENT: Lazy<String> = Lazy::new(|| {
-	let table: String = std::env::var("POSTGRES_TABLE").unwrap();
+static INSERT_LOCATION_STATEMENT: Lazy<String> = Lazy::new(|| {
+	let table: String = std::env::var("POSTGRES_POSITION_TABLE").unwrap();
 
 	format!(
 		"INSERT INTO {table} (user_id, location, timestamp) VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4)"
 	)
 });
 
-pub async fn insert_location(user_id: &str, latitude: f64, longitude: f64, timestamp: DateTime<Utc>) -> u64 {
-	let result = sqlx::query(&INSERT_STATEMENT)
+pub async fn insert_location(
+	user_id: &str,
+	latitude: f64,
+	longitude: f64,
+	timestamp: DateTime<Utc>,
+) -> Result<u64, sqlx::Error> {
+	Ok(sqlx::query(&INSERT_LOCATION_STATEMENT)
 		.bind(user_id)
 		.bind(latitude)
 		.bind(longitude)
 		.bind(timestamp)
 		.execute(&*DB_POOL)
-		.await
-		.unwrap();
+		.await?
+		.rows_affected())
+}
 
-	result.rows_affected()
+static INSERT_TELEMETRY_STATEMENT: Lazy<String> = Lazy::new(|| {
+	let table: String = std::env::var("POSTGRES_TELEMETRY_TABLE").unwrap();
+
+	format!("INSERT INTO {table} (user_id, battery_level, voltage, timestamp) VALUES ($1, $2, $3, $4)")
+});
+
+pub async fn insert_telemetry(
+	user_id: &str,
+	battery_level: u32,
+	voltage: f32,
+	timestamp: DateTime<Utc>,
+) -> Result<u64, sqlx::Error> {
+	Ok(sqlx::query(&INSERT_TELEMETRY_STATEMENT)
+		.bind(user_id)
+		.bind(battery_level as i32)
+		.bind(voltage)
+		.bind(timestamp)
+		.execute(&*DB_POOL)
+		.await?
+		.rows_affected())
 }
