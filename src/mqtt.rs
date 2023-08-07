@@ -1,18 +1,40 @@
 use crate::protobufs::meshtastic::{
-	int_to_portnum, mesh_packet::PayloadVariant, Data, MeshPacket, PortNum, Position, ServiceEnvelope, Telemetry,
+	int_to_portnum, mesh_packet::PayloadVariant, Data, PortNum, Position, ServiceEnvelope, Telemetry,
 };
 use crate::utils::get_user_id;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use prost::Message;
-use rumqttc::Packet::{self, PingResp, Publish};
+use rumqttc::Packet::{
+	self, ConnAck, Connect, Disconnect, PingReq, PingResp, PubAck, PubComp, PubRec, PubRel, Publish, SubAck, Subscribe,
+	UnsubAck, Unsubscribe,
+};
+use std::fmt::Debug;
+
+fn handle_packet<T: Debug>(p: T) -> Result<(), prost::DecodeError> {
+	println!("Received = {:#?}", p);
+	Ok(())
+}
 
 const COORDINATE_MULTIPLIER: f64 = 0.0000001;
 
-pub async fn handle_incoming(i: Packet) {
+pub async fn handle_incoming(i: Packet) -> Result<(), prost::DecodeError> {
 	match i {
 		Publish(p) => handle_incoming_publish(p).await,
-		PingResp => {} // Don't do anything, they're so loud
-		_ => println!("Received = {:?}", i),
+		Connect(p) => handle_packet(p),
+		ConnAck(p) => handle_packet(p),
+		PubAck(p) => handle_packet(p),
+		PubRec(p) => handle_packet(p),
+		PubRel(p) => handle_packet(p),
+		PubComp(p) => handle_packet(p),
+		Subscribe(p) => handle_packet(p),
+		SubAck(p) => handle_packet(p),
+		Unsubscribe(p) => handle_packet(p),
+		UnsubAck(p) => handle_packet(p),
+		Disconnect => {
+			println!("Received = Disconnect packet");
+			Ok(())
+		}
+		PingReq | PingResp => Ok(()),
 	}
 }
 
@@ -75,53 +97,25 @@ async fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 	}
 }
 
-async fn handle_decoded(topic: &str, d: Data) {
-	let portnum = int_to_portnum(d.portnum);
+async fn handle_incoming_publish(publish_packet: rumqttc::Publish) -> Result<(), prost::DecodeError> {
+	println!("Received = {:?}, {:?}", publish_packet, publish_packet.payload);
 
-	match portnum {
-		Some(p) => handle_portnum(topic, p, d).await,
-		None => todo!(),
-	}
-}
+	let message = ServiceEnvelope::decode(publish_packet.payload)?;
 
-async fn handle_payload_variant(topic: &str, v: PayloadVariant) {
-	match v {
-		PayloadVariant::Decoded(d) => handle_decoded(topic, d).await,
-		PayloadVariant::Encrypted(e) => {
-			println!("  Encrypted = {:?}", e)
+	if let Some(packet) = message.packet {
+		match packet.payload_variant {
+			Some(PayloadVariant::Decoded(d)) => {
+				let portnum = int_to_portnum(d.portnum);
+
+				match portnum {
+					Some(p) => handle_portnum(&publish_packet.topic, p, d).await,
+					None => todo!(),
+				}
+			}
+			Some(PayloadVariant::Encrypted(_)) => (), // Nothing to do with encrypted packets
+			None => println!("  MeshPacket = {:?}", packet),
 		}
 	}
-}
-
-async fn handle_mesh_packet(topic: &str, p: MeshPacket) {
-	match p.payload_variant {
-		Some(v) => handle_payload_variant(topic, v).await,
-		None => println!("  Decoded = {:?}", p),
-	}
-}
-
-async fn handle_service_envelope(topic: &str, m: ServiceEnvelope) {
-	match m.packet {
-		Some(p) => handle_mesh_packet(topic, p).await,
-		None => println!("  Decoded = {:?}", m),
-	}
-}
-
-async fn handle_mesh_2_c(p: rumqttc::Publish) {
-	println!("Received = {:?}, {:?}", p, p.payload);
-	let topic = p.topic;
-	let message: Result<ServiceEnvelope, prost::DecodeError> = ServiceEnvelope::decode(p.payload.clone());
-	match message {
-		Ok(m) => handle_service_envelope(&topic, m).await,
-		Err(e) => println!("  Error = {:?}", e),
-	}
-}
-
-async fn handle_incoming_publish(p: rumqttc::Publish) {
-	if p.topic.starts_with("msh/2/c/") {
-		handle_mesh_2_c(p).await;
-	} else {
-		println!("Received = {:?}, {:?}", p, p.payload);
-	}
-	println!()
+	println!();
+	Ok(())
 }

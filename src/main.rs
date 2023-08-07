@@ -41,12 +41,16 @@ async fn main() {
 		};
 
 		match notification {
-			rumqttc::Event::Incoming(i) => handle_incoming(i).await,
+			rumqttc::Event::Incoming(i) => {
+				if let Err(e) = handle_incoming(i).await {
+					eprintln!("Error = {:?}", e);
+				}
+			}
 			rumqttc::Event::Outgoing(o) => {
 				match o {
 					rumqttc::Outgoing::PingReq => {} // Don't do anything, they're so loud
 					_ => {
-						println!("Received = {:?}", o)
+						println!("Outgoing = {:?}", o)
 					}
 				}
 			}
