@@ -6,7 +6,7 @@ use rumqttc::Packet::{
 use std::fmt::Debug;
 
 fn handle_packet<T: Debug>(p: T) -> Result<(), prost::DecodeError> {
-	println!("Received = {:#?}", p);
+	println!("Received = {:?}", p);
 	Ok(())
 }
 

@@ -8,8 +8,6 @@ use prost::Message;
 const COORDINATE_MULTIPLIER: f64 = 0.0000001;
 
 pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), prost::DecodeError> {
-	println!("Received = {:?}, {:?}", publish_packet, publish_packet.payload);
-
 	let message = ServiceEnvelope::decode(publish_packet.payload)?;
 
 	if let Some(packet) = message.packet {
@@ -26,7 +24,6 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), prost::Decod
 			None => println!("  MeshPacket = {:?}", packet),
 		}
 	}
-	println!();
 	Ok(())
 }
 
@@ -34,7 +31,6 @@ async fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 	match p {
 		PortNum::TextMessageApp => {
 			println!("  Decoded = {:?}", d);
-			println!("    Payload = {:?}", d.payload);
 			match String::from_utf8(d.payload) {
 				Ok(t) => {
 					println!("    TextMessage = {:?}", t)
@@ -45,19 +41,18 @@ async fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 		PortNum::PositionApp => handle_position(topic, d).await,
 		PortNum::TelemetryApp => {
 			println!("  Decoded = {:?}", d);
-			println!("    Payload = {:?}", d.payload);
 			match Telemetry::decode(d.payload.as_ref()) {
 				Ok(t) => {
-					println!("    Telemetry = {:?}", t)
+					println!("    {:?}", t)
 				}
 				Err(e) => println!("  Error = {:?}", e),
 			}
 		}
 		_ => {
 			println!("  Decoded = {:?}", d);
-			println!("    Payload = {:?}", d.payload);
 		}
 	}
+	println!();
 }
 
 async fn handle_position(topic: &str, d: Data) {
@@ -70,10 +65,8 @@ async fn handle_position(topic: &str, d: Data) {
 
 			let latitude = p.latitude_i as f64 * COORDINATE_MULTIPLIER;
 			let longitude = p.longitude_i as f64 * COORDINATE_MULTIPLIER;
-			println!("    Topic = {:?}", topic);
-			println!("      Client = {:?}", user_id);
-			println!("      Longitude = {:.5?}", longitude);
-			println!("      Latitude = {:.5?}", latitude);
+
+			println!("    Position = {user_id:?}: ({longitude:.5}, {latitude:.5})");
 			match timestamp {
 				Some(t) => {
 					let datetime = DateTime::<Utc>::from_utc(t, Utc);
