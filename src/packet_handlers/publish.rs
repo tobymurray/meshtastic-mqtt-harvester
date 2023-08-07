@@ -16,7 +16,7 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), prost::Decod
 				let portnum = int_to_portnum(d.portnum);
 
 				match portnum {
-					Some(p) => handle_portnum(&publish_packet.topic, p, d).await,
+					Some(p) => handle_portnum(&publish_packet.topic, p, d).await?,
 					None => todo!(),
 				}
 			}
@@ -27,7 +27,7 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), prost::Decod
 	Ok(())
 }
 
-async fn handle_portnum(topic: &str, p: PortNum, d: Data) {
+async fn handle_portnum(topic: &str, p: PortNum, d: Data) -> Result<(), prost::DecodeError> {
 	match p {
 		PortNum::TextMessageApp => {
 			println!("  Decoded = {:?}", d);
@@ -38,7 +38,7 @@ async fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 				Err(e) => println!("  Error = {:?}", e),
 			}
 		}
-		PortNum::PositionApp => handle_position(topic, d).await,
+		PortNum::PositionApp => handle_position(topic, d).await?,
 		PortNum::TelemetryApp => {
 			println!("  Decoded = {:?}", d);
 			match Telemetry::decode(d.payload.as_ref()) {
@@ -53,31 +53,31 @@ async fn handle_portnum(topic: &str, p: PortNum, d: Data) {
 		}
 	}
 	println!();
+	Ok(())
 }
 
-async fn handle_position(topic: &str, d: Data) {
+async fn handle_position(topic: &str, d: Data) -> Result<(), prost::DecodeError> {
 	println!("  Decoded = {:?}", d);
-	match Position::decode(d.payload.as_ref()) {
-		Ok(p) => {
-			let timestamp = NaiveDateTime::from_timestamp_opt(p.time.into(), 0);
 
-			let user_id = get_user_id(topic).unwrap_or("UNKNOWN CLIENT");
+	let p = Position::decode(d.payload.as_ref())?;
+	let timestamp = NaiveDateTime::from_timestamp_opt(p.time.into(), 0);
 
-			let latitude = p.latitude_i as f64 * COORDINATE_MULTIPLIER;
-			let longitude = p.longitude_i as f64 * COORDINATE_MULTIPLIER;
+	let user_id = get_user_id(topic).unwrap_or("UNKNOWN CLIENT");
 
-			println!("    Position = {user_id:?}: ({longitude:.5}, {latitude:.5})");
-			match timestamp {
-				Some(t) => {
-					let datetime = DateTime::<Utc>::from_utc(t, Utc);
-					let est_tz = chrono_tz::Tz::America__New_York;
-					let est_datetime = datetime.with_timezone(&est_tz);
-					println!("      Datetime = {:?}", est_datetime);
-					crate::postgres::insert_location(user_id, latitude, longitude, datetime).await;
-				}
-				None => println!("      Can't parse timestamp {:?}", p.time),
-			}
+	let latitude = p.latitude_i as f64 * COORDINATE_MULTIPLIER;
+	let longitude = p.longitude_i as f64 * COORDINATE_MULTIPLIER;
+
+	println!("    Position = {user_id:?}: ({longitude:.5}, {latitude:.5})");
+	match timestamp {
+		Some(t) => {
+			let datetime = DateTime::<Utc>::from_utc(t, Utc);
+			let est_tz = chrono_tz::Tz::America__New_York;
+			let est_datetime = datetime.with_timezone(&est_tz);
+			println!("      Datetime = {:?}", est_datetime);
+			crate::postgres::insert_location(user_id, latitude, longitude, datetime).await;
 		}
-		Err(e) => println!("  Error = {:?}", e),
+		None => println!("      Can't parse timestamp {:?}", p.time),
 	}
+
+	Ok(())
 }
