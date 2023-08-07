@@ -16,7 +16,6 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), Box<dyn Erro
 	if let Some(packet) = message.packet {
 		match packet.payload_variant {
 			Some(PayloadVariant::Decoded(d)) => {
-				println!("  Decoded = {:?}", d);
 				let portnum = int_to_portnum(d.portnum)?;
 				handle_portnum(&publish_packet.topic, portnum, d).await?;
 			}
@@ -30,14 +29,19 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), Box<dyn Erro
 async fn handle_portnum(topic: &str, p: PortNum, d: Data) -> Result<(), Box<dyn Error>> {
 	match p {
 		PortNum::TextMessageApp => {
+			println!("  Decoded = {:?}", d);
 			println!("    TextMessage = {:?}", String::from_utf8(d.payload)?);
 		}
-		PortNum::PositionApp => handle_position(topic, d).await?,
+		PortNum::PositionApp => {
+			println!("  Decoded = {:?}", d);
+			handle_position(topic, d).await?
+		}
 		PortNum::TelemetryApp => {
+			println!("  Decoded = {:?}", d);
 			let t = Telemetry::decode(d.payload.as_ref())?;
 			println!("    {:?}", t);
 		}
-		_ => {}
+		_ => println!("  IGNORING {}", p.as_str_name()),
 	}
 	println!();
 	Ok(())
