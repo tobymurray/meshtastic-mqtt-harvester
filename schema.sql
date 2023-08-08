@@ -3,7 +3,7 @@ CREATE TABLE positions (
     user_id VARCHAR,
     location geometry(POINT),
     timestamp TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_user_timestamp_positions UNIQUE (user_id, timestamp)
 );
 
@@ -16,7 +16,7 @@ CREATE TABLE telemetry (
     battery_level INTEGER,
     voltage REAL,
     timestamp TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_user_timestamp_telemetry UNIQUE (user_id, timestamp)
 );
 
