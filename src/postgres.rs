@@ -26,7 +26,15 @@ static INSERT_LOCATION_STATEMENT: Lazy<String> = Lazy::new(|| {
 	let table: String = std::env::var("POSTGRES_POSITION_TABLE").unwrap();
 
 	format!(
-		"INSERT INTO {table} (user_id, location, timestamp) VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4)"
+		"
+		INSERT INTO {table} (user_id, location, timestamp)
+		VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4)
+		ON CONFLICT (user_id, timestamp)
+		DO UPDATE SET
+				location = ST_SetSRID(ST_MakePoint($2, $3), 4326),
+				created_at = EXCLUDED.created_at
+		WHERE {table}.created_at < EXCLUDED.created_at;
+		"
 	)
 });
 
@@ -49,7 +57,18 @@ pub async fn insert_location(
 static INSERT_TELEMETRY_STATEMENT: Lazy<String> = Lazy::new(|| {
 	let table: String = std::env::var("POSTGRES_TELEMETRY_TABLE").unwrap();
 
-	format!("INSERT INTO {table} (user_id, battery_level, voltage, timestamp) VALUES ($1, $2, $3, $4)")
+	format!(
+		"
+		INSERT INTO {table} (user_id, battery_level, voltage, timestamp)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, timestamp)
+		DO UPDATE SET
+				battery_level = EXCLUDED.battery_level,
+				voltage = EXCLUDED.voltage,
+				created_at = EXCLUDED.created_at
+		WHERE telemetry.created_at < EXCLUDED.created_at;
+		"
+	)
 });
 
 pub async fn insert_telemetry(
