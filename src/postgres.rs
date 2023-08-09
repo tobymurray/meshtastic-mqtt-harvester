@@ -29,11 +29,10 @@ static INSERT_LOCATION_STATEMENT: Lazy<String> = Lazy::new(|| {
 		"
 		INSERT INTO {table} (user_id, location, timestamp)
 		VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4)
-		ON CONFLICT (user_id, timestamp)
+		ON CONFLICT ON CONSTRAINT unique_user_timestamp_positions
 		DO UPDATE SET
 				location = ST_SetSRID(ST_MakePoint($2, $3), 4326),
-				created_at = EXCLUDED.created_at
-		WHERE {table}.created_at < EXCLUDED.created_at;
+				created_at = EXCLUDED.created_at;
 		"
 	)
 });
@@ -46,8 +45,8 @@ pub async fn insert_location(
 ) -> Result<u64, sqlx::Error> {
 	Ok(sqlx::query(&INSERT_LOCATION_STATEMENT)
 		.bind(user_id)
-		.bind(latitude)
 		.bind(longitude)
+		.bind(latitude)
 		.bind(timestamp)
 		.execute(&*DB_POOL)
 		.await?
@@ -61,12 +60,11 @@ static INSERT_TELEMETRY_STATEMENT: Lazy<String> = Lazy::new(|| {
 		"
 		INSERT INTO {table} (user_id, battery_level, voltage, timestamp)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_id, timestamp)
+		ON CONFLICT ON CONSTRAINT unique_user_timestamp_telemetry
 		DO UPDATE SET
 				battery_level = EXCLUDED.battery_level,
 				voltage = EXCLUDED.voltage,
-				created_at = EXCLUDED.created_at
-		WHERE telemetry.created_at < EXCLUDED.created_at;
+				created_at = EXCLUDED.created_at;
 		"
 	)
 });
