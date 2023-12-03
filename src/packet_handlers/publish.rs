@@ -80,6 +80,9 @@ async fn handle_telemetry(node_num: u32, d: Data) -> Result<(), Box<dyn Error>> 
 		Some(telemetry::Variant::AirQualityMetrics(m)) => {
 			println!("  Telemetry: {node_num:}: {} {m:?}", t.time)
 		}
+		Some(telemetry::Variant::PowerMetrics(m)) => {
+			println!("  Telemetry: {node_num:}: {} {m:?}", t.time)
+		}
 		None => todo!(),
 	};
 
