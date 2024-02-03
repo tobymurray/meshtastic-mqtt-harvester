@@ -3,6 +3,7 @@ use dotenvy::dotenv;
 use once_cell::sync::Lazy;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use std::time::Duration;
+use thiserror::Error;
 
 mod protobufs {
 	pub mod meshtastic;
@@ -16,6 +17,14 @@ pub mod errors;
 pub mod mqtt;
 pub mod postgres;
 pub mod utils;
+
+#[derive(Error, Debug)]
+enum HarvesterError {
+	#[error("Client error {0}")]
+	ClientEror(#[from] rumqttc::ClientError),
+	#[error("Connection error {0}")]
+	ConnectionError(#[from] rumqttc::ConnectionError),
+}
 
 static MQTT_CONFIG: Lazy<MqttOptions> = Lazy::new(|| {
 	let mqtt_host = std::env::var("MQTT_HOST").unwrap();
@@ -32,20 +41,32 @@ async fn main() {
 	dotenv().ok();
 
 	let mqtt_host = std::env::var("MQTT_TOPIC").unwrap();
-
-	let (client, mut eventloop) = AsyncClient::new(MQTT_CONFIG.clone(), 10);
-	client.subscribe(mqtt_host, QoS::AtMostOnce).await.unwrap();
+	let mut reconnect_delay = Duration::from_secs(5);
 
 	loop {
-		let notification = match eventloop.poll().await {
-			Ok(e) => e,
-			Err(e) => {
-				eprintln!("{:#?}", e);
-				continue;
+		match run_mqtt_client(mqtt_host.clone()).await {
+			Ok(_) => {
+				eprintln!("MQTT client disconnected. Reconnecting...");
+				// Reset the delay to the initial value on successful connection
+				reconnect_delay = Duration::from_secs(5);
 			}
-		};
+			Err(e) => {
+				eprintln!("Error during MQTT client execution: {:#?}", e);
+				// Incrementally increase the delay before attempting to reconnect
+				println!("Sleeping #{reconnect_delay:?} before reconnecting");
+				tokio::time::sleep(reconnect_delay).await;
+				reconnect_delay = reconnect_delay.mul_f32(1.5).min(Duration::from_secs(300));
+			}
+		}
+	}
+}
 
-		match notification {
+async fn run_mqtt_client(mqtt_host: String) -> Result<(), HarvesterError> {
+	let (client, mut eventloop) = AsyncClient::new(MQTT_CONFIG.clone(), 10);
+	client.subscribe(mqtt_host.clone(), QoS::AtMostOnce).await?;
+
+	loop {
+		match eventloop.poll().await? {
 			rumqttc::Event::Incoming(i) => {
 				if let Err(e) = handle_incoming(i).await {
 					eprintln!("Error = {:?}", e);

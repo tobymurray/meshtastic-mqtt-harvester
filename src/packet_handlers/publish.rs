@@ -30,19 +30,21 @@ async fn handle_portnum(node_num: u32, p: PortNum, d: Data) -> Result<(), Box<dy
 	match p {
 		PortNum::TextMessageApp => {
 			println!("Decoded = {:?}", d);
+			println!();
 			println!("  TextMessage = {:?}", String::from_utf8(d.payload)?);
 		}
 		PortNum::PositionApp => {
 			println!("Decoded = {:?}", d);
+			println!();
 			handle_position(node_num, d).await?
 		}
 		PortNum::TelemetryApp => {
 			println!("Decoded = {:?}", d);
+			println!();
 			handle_telemetry(node_num, d).await?
 		}
-		_ => println!("IGNORING {}", p.as_str_name()),
+		_ => (),
 	}
-	println!();
 	Ok(())
 }
 
