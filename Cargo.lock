@@ -769,6 +769,7 @@ dependencies = [
  "prost-build",
  "rumqttc",
  "sqlx",
+ "thiserror",
  "tokio",
 ]
 
