@@ -11,6 +11,11 @@ use prost::Message;
 const COORDINATE_MULTIPLIER: f64 = 0.0000001;
 
 pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), Box<dyn Error>> {
+	// Only care about raw protobuf packets
+	if !publish_packet.topic.contains("/c/") {
+		return Ok(());
+	}
+
 	let message = ServiceEnvelope::decode(publish_packet.payload)?;
 
 	if let Some(packet) = message.packet {
