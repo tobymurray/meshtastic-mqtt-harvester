@@ -40,11 +40,11 @@ static MQTT_CONFIG: Lazy<MqttOptions> = Lazy::new(|| {
 async fn main() {
 	dotenv().ok();
 
-	let mqtt_host = std::env::var("MQTT_TOPIC").unwrap();
+	let mqtt_topic = std::env::var("MQTT_TOPIC").unwrap();
 	let mut reconnect_delay = Duration::from_secs(5);
 
 	loop {
-		match run_mqtt_client(mqtt_host.clone()).await {
+		match run_mqtt_client(mqtt_topic.clone()).await {
 			Ok(_) => {
 				eprintln!("MQTT client disconnected. Reconnecting...");
 				// Reset the delay to the initial value on successful connection
@@ -61,9 +61,9 @@ async fn main() {
 	}
 }
 
-async fn run_mqtt_client(mqtt_host: String) -> Result<(), HarvesterError> {
+async fn run_mqtt_client(mqtt_topic: String) -> Result<(), HarvesterError> {
 	let (client, mut eventloop) = AsyncClient::new(MQTT_CONFIG.clone(), 10);
-	client.subscribe(mqtt_host.clone(), QoS::AtMostOnce).await?;
+	client.subscribe(mqtt_topic.clone(), QoS::AtMostOnce).await?;
 
 	loop {
 		match eventloop.poll().await? {
