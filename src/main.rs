@@ -1,3 +1,5 @@
+#![deny(unused_crate_dependencies)]
+
 use crate::mqtt::handle_incoming;
 use dotenvy::dotenv;
 use once_cell::sync::Lazy;

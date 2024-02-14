@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use crate::errors::HarvesterError::BadTimestamp;
+use crate::mqtt::decrypt_data;
 use crate::protobufs::meshtastic::telemetry;
 use crate::protobufs::meshtastic::{
 	int_to_portnum, mesh_packet::PayloadVariant, Data, PortNum, Position, ServiceEnvelope, Telemetry,
@@ -24,7 +25,17 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), Box<dyn Erro
 				let portnum = int_to_portnum(d.portnum)?;
 				handle_portnum(packet.from, portnum, d).await?;
 			}
-			Some(PayloadVariant::Encrypted(_)) => (),
+			Some(PayloadVariant::Encrypted(e)) => {
+				let data = decrypt_data(packet.id.into(), packet.from.into(), e);
+				match data {
+					Ok(Some(d)) => {
+						let portnum = int_to_portnum(d.portnum)?;
+						handle_portnum(packet.from, portnum, d).await?;
+					}
+					Ok(None) => (),
+					Err(_) => (),
+				};
+			}
 			None => println!("MeshPacket = {:?}", packet),
 		}
 	}
@@ -34,18 +45,12 @@ pub async fn handle(publish_packet: rumqttc::Publish) -> Result<(), Box<dyn Erro
 async fn handle_portnum(node_num: u32, p: PortNum, d: Data) -> Result<(), Box<dyn Error>> {
 	match p {
 		PortNum::TextMessageApp => {
-			println!("Decoded = {:?}", d);
-			println!();
 			println!("  TextMessage = {:?}", String::from_utf8(d.payload)?);
 		}
 		PortNum::PositionApp => {
-			println!("Decoded = {:?}", d);
-			println!();
 			handle_position(node_num, d).await?
 		}
 		PortNum::TelemetryApp => {
-			println!("Decoded = {:?}", d);
-			println!();
 			handle_telemetry(node_num, d).await?
 		}
 		_ => (),
