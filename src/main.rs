@@ -71,7 +71,10 @@ async fn run_mqtt_client(mqtt_topic: String) -> Result<(), HarvesterError> {
 		match eventloop.poll().await? {
 			rumqttc::Event::Incoming(i) => {
 				if let Err(e) = handle_incoming(i.clone()).await {
-					eprintln!("Error {:?} handling {i:?}", e);
+					match e.source() {
+						Some(e) => eprintln!("Decode error: {}", e),
+						None => (),
+					};
 				}
 			}
 			rumqttc::Event::Outgoing(o) => {
