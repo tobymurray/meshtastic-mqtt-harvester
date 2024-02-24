@@ -1,1 +1,0 @@
-scp /home/toby/git/rust/meshtastic-mqtt-harvester/target/x86_64-unknown-linux-gnu/release/meshtastic-mqtt-harvester toby@172.105.10.14:/home/toby
