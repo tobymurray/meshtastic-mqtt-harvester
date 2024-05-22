@@ -32,9 +32,12 @@ static MQTT_CONFIG: Lazy<MqttOptions> = Lazy::new(|| {
 	let mqtt_host = std::env::var("MQTT_HOST").unwrap();
 	let mqtt_port = std::env::var("MQTT_PORT").unwrap().parse::<u16>().unwrap();
 	let mqtt_user = std::env::var("MQTT_USER").unwrap();
+	let mqtt_username = std::env::var("MQTT_USERNAME").unwrap();
+	let mqtt_password = std::env::var("MQTT_PASSWORD").unwrap();
 
 	let mut mqttoptions = MqttOptions::new(mqtt_user, mqtt_host, mqtt_port);
 	mqttoptions.set_keep_alive(Duration::from_secs(5));
+	mqttoptions.set_credentials(mqtt_username, mqtt_password);
 	mqttoptions
 });
 
