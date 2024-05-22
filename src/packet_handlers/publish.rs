@@ -5,7 +5,7 @@ use crate::mqtt::decrypt_data;
 use crate::protobufs::meshtastic::{
 	int_to_portnum, mesh_packet::PayloadVariant, Data, PortNum, Position, ServiceEnvelope, Telemetry,
 };
-use crate::protobufs::meshtastic::{telemetry, NodeInfo};
+use crate::protobufs::meshtastic::{telemetry, MapReport, NodeInfo};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use prost::Message;
 
@@ -70,7 +70,13 @@ async fn handle_portnum(node_num: u32, p: PortNum, d: Data) -> Result<(), Box<dy
 		PortNum::PrivateApp => handle_private(node_num, d).await?,
 		PortNum::AtakForwarder => handle_atak_forwarder(node_num, d).await?,
 		PortNum::Max => handle_max(node_num, d).await?,
+		PortNum::MapReportApp => handle_map_report_app(node_num, d).await?,
 	}
+	Ok(())
+}
+
+async fn handle_map_report_app(_: u32, d: Data) -> Result<(), Box<dyn Error>> {
+	let _ = MapReport::decode(d.payload.as_ref())?;
 	Ok(())
 }
 
